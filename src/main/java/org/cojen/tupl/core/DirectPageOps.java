@@ -19,7 +19,10 @@ package org.cojen.tupl.core;
 
 import java.io.IOException;
 
-import java.nio.ByteBuffer;
+import java.lang.foreign.MemoryAddress;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.MemorySession;
+import java.lang.foreign.ValueLayout;
 
 import java.util.Arrays;
 
@@ -44,8 +47,13 @@ public final class DirectPageOps {
     private static final boolean CHECK_BOUNDS;
     private static final int CHECKED_PAGE_SIZE;
 
-    private static final sun.misc.Unsafe UNSAFE = UnsafeAccess.obtain();
-    private static final long BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
+    static final MemorySegment GLOBAL;
+    static final int OS_PAGE_SIZE;
+
+    static final ValueLayout.OfChar VL_CHAR = ValueLayout.JAVA_CHAR.withBitAlignment(8);
+    static final ValueLayout.OfInt VL_INT = ValueLayout.JAVA_INT.withBitAlignment(8);
+    static final ValueLayout.OfLong VL_LONG = ValueLayout.JAVA_LONG.withBitAlignment(8);
+
     private static final long EMPTY_TREE_LEAF;
     private static final long CLOSED_TREE_PAGE;
     private static final long STUB_TREE_PAGE;
@@ -62,6 +70,11 @@ public final class DirectPageOps {
             CHECKED_PAGE_SIZE = checkedPageSize;
         }
 
+        GLOBAL = MemorySegment.ofAddress
+            (MemoryAddress.NULL, Long.MAX_VALUE, MemorySession.global());
+
+        OS_PAGE_SIZE = UnsafeAccess.osPageSize();
+
         EMPTY_TREE_LEAF = newEmptyTreeLeafPage();
         CLOSED_TREE_PAGE = newEmptyTreeLeafPage();
         STUB_TREE_PAGE = newEmptyTreePage(Node.TN_HEADER_SIZE + 8, Node.TYPE_TN_IN);
@@ -73,7 +86,7 @@ public final class DirectPageOps {
     }
 
     private static long newEmptyTreePage(int pageSize, int type) {
-        long empty = p_callocPage(pageSize);
+        long empty = p_callocPage(pageSize); // FIXME: must be global
 
         p_bytePut(empty, 0, type);
 
@@ -105,15 +118,20 @@ public final class DirectPageOps {
     }
 
     public static long p_alloc(int size) {
-        return UnsafeAccess.alloc(size);
+        return MemorySession.global().allocate(size, 1).address().toRawLongValue();
     }
 
     static long p_allocPage(int size) {
-        return UnsafeAccess.alloc(Math.abs(size), size < 0); // aligned if negative
+        return allocPageSegment(size).address().toRawLongValue();
     }
 
     static long p_callocPage(int size) {
-        return UnsafeAccess.calloc(Math.abs(size), size < 0); // aligned if negative
+        return allocPageSegment(size).fill((byte) 0).address().toRawLongValue();
+    }
+
+    private static MemorySegment allocPageSegment(int size) {
+        // FIXME: cannot be global session
+        return MemorySession.global().allocate(Math.abs(size), size < 0 ? OS_PAGE_SIZE : 1);
     }
 
     static long[] p_allocArray(int size) {
@@ -123,6 +141,7 @@ public final class DirectPageOps {
     public static void p_delete(final long page) {
         // Only delete pages that were allocated from the Unsafe class and aren't globals.
         if (page != CLOSED_TREE_PAGE && page != EMPTY_TREE_LEAF && !inArena(page)) {
+            // FIXME: can only close a MemorySession
             UnsafeAccess.free(page);
         }
     }
@@ -148,19 +167,18 @@ public final class DirectPageOps {
 
                 final int numThreads = Runtime.getRuntime().availableProcessors();
                 final var latch = new Latch(numThreads);
-                final int osPageSize = UNSAFE.pageSize();
-                final long osPageCount = (mEndPtr - mStartPtr) / osPageSize;
+                final long osPageCount = (mEndPtr - mStartPtr) / OS_PAGE_SIZE;
 
                 long startPtr = mStartPtr;
                 for (int i=1; i<numThreads; i++) {
                     final long fstartPtr = startPtr;
-                    final long endPtr = mStartPtr + (i * osPageCount / numThreads) * osPageSize;
-                    Runner.start(() -> preTouch(fstartPtr, endPtr, osPageSize, latch));
+                    final long endPtr = mStartPtr + (i * osPageCount / numThreads) * OS_PAGE_SIZE;
+                    Runner.start(() -> preTouch(fstartPtr, endPtr, OS_PAGE_SIZE, latch));
                     startPtr = endPtr;
                 }
 
                 // Do the last range in this thread.
-                preTouch(startPtr, mEndPtr, osPageSize, latch);
+                preTouch(startPtr, mEndPtr, OS_PAGE_SIZE, latch);
 
                 // Wait for all threads to finish.
                 latch.acquireExclusive();
@@ -169,7 +187,7 @@ public final class DirectPageOps {
 
         private static void preTouch(long startPtr, long endPtr, int pageSize, Latch notify) {
             for (long ptr = startPtr; ptr < endPtr; ptr += pageSize) {
-                UNSAFE.putByte(ptr, (byte) 0);
+                GLOBAL.set(ValueLayout.JAVA_BYTE, ptr, (byte) 0);
             }
             notify.releaseShared();
         }
@@ -310,9 +328,10 @@ public final class DirectPageOps {
     }
 
     static long p_clonePage(final long page, int pageSize) {
-        long dst = p_allocPage(pageSize);
-        UnsafeAccess.copy(page, dst, Math.abs(pageSize));
-        return dst;
+        pageSize = Math.abs(pageSize);
+        MemorySegment dstPage = allocPageSegment(pageSize);
+        MemorySegment.copy(GLOBAL, page, dstPage, 0, pageSize);
+        return dstPage.address().toRawLongValue();
     }
 
     static long p_transfer(byte[] array) {
@@ -341,7 +360,7 @@ public final class DirectPageOps {
         if (CHECK_BOUNDS && Long.compareUnsigned(index, CHECKED_PAGE_SIZE) >= 0) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        return UNSAFE.getByte(page + index);
+        return GLOBAL.get(ValueLayout.JAVA_BYTE, page + index);
     }
 
     public static int p_ubyteGet(final long page, int index) {
@@ -352,7 +371,7 @@ public final class DirectPageOps {
         if (CHECK_BOUNDS && Long.compareUnsigned(index, CHECKED_PAGE_SIZE) >= 0) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        UNSAFE.putByte(page + index, v);
+        GLOBAL.set(ValueLayout.JAVA_BYTE, page + index, v);
     }
 
     public static void p_bytePut(final long page, int index, int v) {
@@ -363,28 +382,28 @@ public final class DirectPageOps {
         if (CHECK_BOUNDS && (index < 0 || index + 2 > CHECKED_PAGE_SIZE)) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        return UNSAFE.getChar(page + index);
+        return GLOBAL.get(VL_CHAR, page + index);
     }
 
     static void p_shortPutLE(final long page, int index, int v) {
         if (CHECK_BOUNDS && (index < 0 || index + 2 > CHECKED_PAGE_SIZE)) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        UNSAFE.putShort(page + index, (short) v);
+        GLOBAL.set(VL_CHAR, page + index, (char) v);
     }
 
     static int p_intGetLE(final long page, int index) {
         if (CHECK_BOUNDS && (index < 0 || index + 4 > CHECKED_PAGE_SIZE)) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        return UNSAFE.getInt(page + index);
+        return GLOBAL.get(VL_INT, page + index);
     }
 
     static void p_intPutLE(final long page, int index, int v) {
         if (CHECK_BOUNDS && (index < 0 || index + 4 > CHECKED_PAGE_SIZE)) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        UNSAFE.putInt(page + index, v);
+        GLOBAL.set(VL_INT, page + index, v);
     }
 
     static long p_uintGetVar(final long page, int index) {
@@ -470,14 +489,14 @@ public final class DirectPageOps {
         if (CHECK_BOUNDS && (index < 0 || index + 8 > CHECKED_PAGE_SIZE)) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        return UNSAFE.getLong(page + index);
+        return GLOBAL.get(VL_LONG, page + index);
     }
 
     static void p_longPutLE(final long page, int index, long v) {
         if (CHECK_BOUNDS && (index < 0 || index + 8 > CHECKED_PAGE_SIZE)) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
-        UNSAFE.putLong(page + index, v);
+        GLOBAL.set(VL_LONG, page + index, v);
     }
 
     static long p_longGetBE(final long page, int index) {
@@ -656,7 +675,7 @@ public final class DirectPageOps {
                     throw new ArrayIndexOutOfBoundsException(toIndex);
                 }
             }
-            UnsafeAccess.fill(page + fromIndex, len, (byte) 0);
+            GLOBAL.asSlice(page + fromIndex, len).fill((byte) 0);
         }
     }
 
@@ -679,7 +698,7 @@ public final class DirectPageOps {
                 throw new IndexOutOfBoundsException("dst: " + dstStart + ", " + len);
             }
         }
-        UNSAFE.copyMemory(src, BYTE_ARRAY_OFFSET + srcStart, null, dstPage + dstStart, len);
+        MemorySegment.copy(src, srcStart, GLOBAL, ValueLayout.JAVA_BYTE, dstPage + dstStart, len);
     }
 
     public static void p_copyToArray(final long srcPage, int srcStart,
@@ -696,17 +715,7 @@ public final class DirectPageOps {
                 throw new IndexOutOfBoundsException("dst: " + dstStart + ", " + len);
             }
         }
-        UNSAFE.copyMemory(null, srcPage + srcStart, dst, BYTE_ARRAY_OFFSET + dstStart, len);
-    }
-
-    static void p_copyFromBB(ByteBuffer src, final long dstPage, int dstStart, int len) {
-        src.limit(src.position() + len);
-        DirectAccess.ref(dstPage + dstStart, len).put(src);
-        src.limit(src.capacity());
-    }
-
-    static void p_copyToBB(final long srcPage, int srcStart, ByteBuffer dst, int len) {
-        dst.put(DirectAccess.ref(srcPage + srcStart, len));
+        MemorySegment.copy(GLOBAL, ValueLayout.JAVA_BYTE, srcPage + srcStart, dst, dstStart, len);
     }
 
     public static void p_copy(final long srcPage, int srcStart,
@@ -723,7 +732,7 @@ public final class DirectPageOps {
                 throw new IndexOutOfBoundsException("dst: " + dstStart + ", " + len);
             }
         }
-        UnsafeAccess.copy(srcPage + srcStart, dstPage + dstStart, len);
+        MemorySegment.copy(GLOBAL, srcPage + srcStart, GLOBAL, dstPage + dstStart, len);
     }
 
     static void p_copies(final long page,

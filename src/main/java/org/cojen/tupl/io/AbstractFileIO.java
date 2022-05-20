@@ -53,7 +53,7 @@ abstract class AbstractFileIO extends FileIO {
     static {
         int pageSize = 4096;
         try {
-            pageSize = UnsafeAccess.tryObtain().pageSize();
+            pageSize = UnsafeAccess.osPageSize();
         } catch (Throwable e) {
             // Ignore. Use default value.
         }

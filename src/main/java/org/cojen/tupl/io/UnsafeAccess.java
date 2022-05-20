@@ -128,6 +128,10 @@ public class UnsafeAccess {
         UNSAFE.freeMemory(ptr);
     }
 
+    public static int osPageSize() {
+        return UNSAFE.pageSize();
+    }
+
     static class JNA {
         static {
             Native.register(Platform.C_LIBRARY_NAME);

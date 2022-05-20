@@ -212,8 +212,6 @@ abstract class ChecksumPageArray extends TransformedPageArray {
     }
 
     private static class Direct extends ChecksumPageArray {
-        private static final sun.misc.Unsafe UNSAFE = UnsafeAccess.obtain();
-
         private final int mAbsPageSize;
         private final ThreadLocal<Checksum> mLocalChecksum;
 
@@ -259,7 +257,8 @@ abstract class ChecksumPageArray extends TransformedPageArray {
             } else {
                 // Assume that the caller has provided a buffer sized to match the direct page.
                 mSource.readPage(index, dstPtr, offset, mAbsPageSize);
-                int actualChecksum = UNSAFE.getInt(dstPtr + offset + mAbsPageSize - 4);
+                int actualChecksum = DirectPageOps.GLOBAL.get(DirectPageOps.VL_INT,
+                                                              dstPtr + offset + mAbsPageSize - 4);
                 Checksum checksum = checksum();
                 checksum.reset();
                 checksum.update(DirectAccess.ref(dstPtr + offset, length));
@@ -289,7 +288,8 @@ abstract class ChecksumPageArray extends TransformedPageArray {
             checksum.reset();
             checksum.update(DirectAccess.ref(srcPtr + offset, mAbsPageSize - 4));
             // Assume that the caller has provided a buffer sized to match the direct page.
-            UNSAFE.putInt(srcPtr + offset + mAbsPageSize - 4, (int) checksum.getValue());
+            DirectPageOps.GLOBAL.set(DirectPageOps.VL_INT,
+                                     srcPtr + offset + mAbsPageSize - 4, (int) checksum.getValue());
             mSource.writePage(index, srcPtr, offset);
         }
 
