@@ -209,6 +209,9 @@ public class RowMaker {
         state.set(state.or(RowGen.stateFieldMask(columnNum))); // set dirty
     }
 
+    /**
+     * Generates hashCode, equals, and toString methods.
+     */
     public static CallSite indyObjectMethod(MethodHandles.Lookup lookup, String name, MethodType mt,
                                             Class<?> rowType)
     {
@@ -447,9 +450,7 @@ public class RowMaker {
     }
 
     private void addCompareTo() {
-        if (!Comparable.class.isAssignableFrom(mRowType) ||
-            isDefaultMethod("compareTo", Object.class) || isDefaultMethod("compareTo", mRowType))
-        {
+        if (!CompareUtils.needsCompareTo(mRowType)) {
             return;
         }
 
@@ -481,13 +482,5 @@ public class RowMaker {
     private MethodMaker addMethod(Method m) {
         return mClassMaker.addMethod(m.getReturnType(), m.getName(),
                                      (Object[]) m.getParameterTypes());
-    }
-
-    private boolean isDefaultMethod(String name, Class<?>... paramTypes) {
-        try {
-            return mRowType.getMethod(name, paramTypes).isDefault();
-        } catch (NoSuchMethodException e) {
-            return false;
-        }
     }
 }

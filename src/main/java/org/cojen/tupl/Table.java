@@ -31,6 +31,8 @@ import org.cojen.tupl.diag.QueryPlan;
 
 import org.cojen.tupl.io.Utils;
 
+import org.cojen.tupl.rows.JoinTableMaker;
+
 /**
  * Defines a relational collection of persistent rows. A row is defined by an interface
  * consisting of accessor/mutator methods corresponding to each column:
@@ -129,6 +131,11 @@ public interface Table<R> extends Closeable {
     public Scanner<R> newScanner(Transaction txn) throws IOException;
 
     /**
+     * @hidden
+     */
+    public Scanner<R> newScanner(Transaction txn, R row) throws IOException;
+
+    /**
      * Returns a new scanner for a subset of rows from this table, as specified by the query
      * expression.
      *
@@ -138,6 +145,12 @@ public interface Table<R> extends Closeable {
      * @see #scannerPlan scannerPlan
      */
     public Scanner<R> newScanner(Transaction txn, String query, Object... args)
+        throws IOException;
+
+    /**
+     * @hidden
+     */
+    public Scanner<R> newScanner(Transaction txn, R row, String query, Object... args)
         throws IOException;
 
     /**
@@ -316,6 +329,28 @@ public interface Table<R> extends Closeable {
      * @throws IllegalStateException if primary key isn't fully specified
      */
     public boolean delete(Transaction txn, R row) throws IOException;
+
+    /**
+     * Joins tables together into an unmodifiable view. The view doesn't have any primary key,
+     * and so operations which act upon one aren't supported. In addition, closing the view
+     * doesn't have any effect.
+     *
+     * <p>The {@code joinType} parameter is a class which resembles an ordinary row definition
+     * except that all columns must refer to other row types. Annotations for defining keys and
+     * indexes is unsupported.
+     *
+     * <p>The number of tables passed to this method must exactly match the number of columns
+     * defined in the {@code joinType}, and each table type is matched by column type. If
+     * multiple columns share the same table type, match order is based on lexicographical
+     * column name.
+     *
+     * @throws NullPointerException if any parameters are null
+     * @throws IllegalStateException if join type is malformed or if there are any table
+     * matching issues
+     */
+    public static <J> Table<J> join(Class<J> joinType, Table<?>... tables) {
+        return JoinTableMaker.join(joinType, tables);
+    }
 
     /**
      * Returns a row comparator based on the given specification, which defines the ordering

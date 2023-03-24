@@ -269,9 +269,13 @@ class RowInfo extends ColumnSet {
     }
 
     private static void errorCheck(Class<?> rowType, Set<String> messages) {
+        errorCheck("Row type", rowType, messages);
+    }
+
+    static void errorCheck(String prefix, Class<?> rowType, Set<String> messages) {
         if (!messages.isEmpty()) {
-            var bob = new StringBuilder();
-            bob.append("Row type \"").append(rowType.getSimpleName()).append("\" is malformed: ");
+            var bob = new StringBuilder().append(prefix).append(' ').append('"');
+            bob.append(rowType.getSimpleName()).append("\" is malformed: ");
             final int length = bob.length();
             for (String message : messages) {
                 if (bob.length() > length) {

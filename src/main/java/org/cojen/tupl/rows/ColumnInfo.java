@@ -67,7 +67,7 @@ public class ColumnInfo implements Cloneable {
       0b...11100: big integer
       0b...11101: big decimal
       0b...11110: document
-      0b...11111: unused
+      0b...11111: object
 
       Modifiers:
 
@@ -92,7 +92,8 @@ public class ColumnInfo implements Cloneable {
         TYPE_CHAR        = 0b10100,
         TYPE_UTF8        = 0b11000,
         TYPE_BIG_INTEGER = 0b11100,
-        TYPE_BIG_DECIMAL = 0b11101;
+        TYPE_BIG_DECIMAL = 0b11101,
+        TYPE_OBJECT      = 0b11111;
 
     public static final int
         TYPE_NULL_LOW    = 0b1000_00000,

@@ -427,7 +427,7 @@ public abstract sealed class QueryPlan implements Serializable {
     }
 
     /**
-     * Query plan node which joins two sources based on a common set of columns.
+     * Query plan node which joins a target to a source based on a common set of columns.
      */
     public static sealed class NaturalJoin extends QueryPlan {
         private static final long serialVersionUID = 1L;
@@ -637,6 +637,32 @@ public abstract sealed class QueryPlan implements Serializable {
         @Override
         public int hashCode() {
             return super.hashCode() ^ -1637108271;
+        }
+    }
+
+    /**
+     * Query plan node which represents a nested loop join.
+     */
+    public static final class NestedLoopsJoin extends Set {
+        private static final long serialVersionUID = 1L;
+
+        public NestedLoopsJoin(QueryPlan... sources) {
+            super(sources);
+        }
+
+        @Override
+        void appendTo(Appendable a, String in1, String in2) throws IOException {
+            appendTo(a, in1, in2, "nested loops join");
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof NestedLoopsJoin join && matches(join);
+        }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode() ^ 533558266;
         }
     }
 }

@@ -152,7 +152,8 @@ public abstract class BaseTable<R> implements Table<R>, ScanControllerFactory<R>
         return newScanner(txn, (R) null);
     }
 
-    final Scanner<R> newScanner(Transaction txn, R row) throws IOException {
+    @Override
+    public final Scanner<R> newScanner(Transaction txn, R row) throws IOException {
         return newScanner(txn, row, unfiltered());
     }
 
@@ -163,7 +164,8 @@ public abstract class BaseTable<R> implements Table<R>, ScanControllerFactory<R>
         return newScanner(txn, (R) null, queryStr, args);
     }
 
-    protected Scanner<R> newScanner(Transaction txn, R row, String queryStr, Object... args)
+    @Override
+    public Scanner<R> newScanner(Transaction txn, R row, String queryStr, Object... args)
         throws IOException
     {
         QueryLauncher<R> launcher = scannerQueryLauncher(txn, queryStr);

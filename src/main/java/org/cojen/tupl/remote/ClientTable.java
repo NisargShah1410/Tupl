@@ -111,8 +111,22 @@ final class ClientTable<R> implements Table<R> {
     }
 
     @Override
+    public Scanner<R> newScanner(Transaction txn, R row) throws IOException {
+        // FIXME
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Scanner<R> newScanner(Transaction txn, String query, Object... args) throws IOException {
         return newScanner(mRemote.newScanner(mDb.remoteTransaction(txn), null, query, args));
+    }
+
+    @Override
+    public Scanner<R> newScanner(Transaction txn, R row, String query, Object... args)
+        throws IOException
+    {
+        // FIXME
+        throw new UnsupportedOperationException();
     }
 
     private Scanner<R> newScanner(Pipe pipe) throws IOException {

@@ -84,19 +84,31 @@ class RowGen {
     public static ClassMaker beginClassMaker(Class<?> who, Class<?> rowType, RowInfo info,
                                              String subPackage, String suffix)
     {
+        return beginClassMaker(who, rowType, info == null ? null : info.name, subPackage, suffix);
+    }
+
+    /**
+     * @param who the class which is making a class (can be null)
+     * @param rowType defines the ClassLoader to use (can be null)
+     * @param infoName row info name (can be null)
+     * @param subPackage optional (can be null)
+     * @param suffix appended to class name (can be null)
+     */
+    public static ClassMaker beginClassMaker(Class<?> who, Class<?> rowType, String infoName,
+                                             String subPackage, String suffix)
+    {
         final String name;
 
-        String infoName;
-        if (info == null || (infoName = info.name) == null) {
+        if (infoName == null) {
             name = null;
         } else {
             var bob = new StringBuilder();
 
             if (subPackage != null) {
-                int ix = info.name.lastIndexOf('.');
+                int ix = infoName.lastIndexOf('.');
                 if (ix > 0) {
-                    bob.append(info.name, 0, ix).append('.');
-                    infoName = info.name.substring(ix + 1);
+                    bob.append(infoName, 0, ix).append('.');
+                    infoName = infoName.substring(ix + 1);
                 }
                 bob.append(subPackage).append('.');
             }
