@@ -149,11 +149,11 @@ public abstract class BaseTable<R> implements Table<R>, ScanControllerFactory<R>
 
     @Override
     public final Scanner<R> newScanner(Transaction txn) throws IOException {
-        return newScanner(txn, (R) null);
+        return newScannerWith(txn, (R) null);
     }
 
     @Override
-    public final Scanner<R> newScanner(Transaction txn, R row) throws IOException {
+    public final Scanner<R> newScannerWith(Transaction txn, R row) throws IOException {
         return newScanner(txn, row, unfiltered());
     }
 
@@ -161,11 +161,11 @@ public abstract class BaseTable<R> implements Table<R>, ScanControllerFactory<R>
     public final Scanner<R> newScanner(Transaction txn, String queryStr, Object... args)
         throws IOException
     {
-        return newScanner(txn, (R) null, queryStr, args);
+        return newScannerWith(txn, (R) null, queryStr, args);
     }
 
     @Override
-    public Scanner<R> newScanner(Transaction txn, R row, String queryStr, Object... args)
+    public Scanner<R> newScannerWith(Transaction txn, R row, String queryStr, Object... args)
         throws IOException
     {
         QueryLauncher<R> launcher = scannerQueryLauncher(txn, queryStr);
@@ -215,7 +215,7 @@ public abstract class BaseTable<R> implements Table<R>, ScanControllerFactory<R>
         newScanner: {
             if (txn == null) {
                 // A null transaction behaves like a read committed transaction (as usual), but
-                // it doesn't acquire predicate locks. This makes it weaker that a transaction
+                // it doesn't acquire predicate locks. This makes it weaker than a transaction
                 // which is explicitly read committed.
 
                 if (joinedPrimaryTableClass() != null) {
@@ -474,7 +474,7 @@ public abstract class BaseTable<R> implements Table<R>, ScanControllerFactory<R>
         var writer = new RowWriter<R>(out);
 
         // Pass the writer as if it's a row, but it's actually a RowConsumer.
-        Scanner<R> scanner = newScanner(txn, (R) writer);
+        Scanner<R> scanner = newScannerWith(txn, (R) writer);
         try {
             while (scanner.step((R) writer) != null);
         } catch (Throwable e) {

@@ -133,7 +133,7 @@ public interface Table<R> extends Closeable {
     /**
      * @hidden
      */
-    public Scanner<R> newScanner(Transaction txn, R row) throws IOException;
+    public Scanner<R> newScannerWith(Transaction txn, R row) throws IOException;
 
     /**
      * Returns a new scanner for a subset of rows from this table, as specified by the query
@@ -150,7 +150,7 @@ public interface Table<R> extends Closeable {
     /**
      * @hidden
      */
-    public Scanner<R> newScanner(Transaction txn, R row, String query, Object... args)
+    public Scanner<R> newScannerWith(Transaction txn, R row, String query, Object... args)
         throws IOException;
 
     /**

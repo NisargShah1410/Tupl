@@ -111,7 +111,7 @@ final class ClientTable<R> implements Table<R> {
     }
 
     @Override
-    public Scanner<R> newScanner(Transaction txn, R row) throws IOException {
+    public Scanner<R> newScannerWith(Transaction txn, R row) throws IOException {
         // FIXME
         throw new UnsupportedOperationException();
     }
@@ -122,7 +122,7 @@ final class ClientTable<R> implements Table<R> {
     }
 
     @Override
-    public Scanner<R> newScanner(Transaction txn, R row, String query, Object... args)
+    public Scanner<R> newScannerWith(Transaction txn, R row, String query, Object... args)
         throws IOException
     {
         // FIXME
