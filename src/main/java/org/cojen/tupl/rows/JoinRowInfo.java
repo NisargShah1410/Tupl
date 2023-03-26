@@ -20,6 +20,7 @@ package org.cojen.tupl.rows;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -44,6 +45,8 @@ import static org.cojen.tupl.rows.ColumnInfo.*;
 final class JoinRowInfo {
     private static final WeakClassCache<JoinRowInfo> cache = new WeakClassCache<>();
 
+    private static Set<Class<?>> examining;
+
     /**
      * Returns a new or cached instance.
      *
@@ -56,8 +59,21 @@ final class JoinRowInfo {
             synchronized (cache) {
                 info = cache.get(joinType);
                 if (info == null) {
-                    info = examine(joinType);
-                    cache.put(joinType, info);
+                    if (examining == null) {
+                        examining = new HashSet<>();
+                    }
+                    if (!examining.add(joinType)) {
+                        throw new IllegalArgumentException("Recursive join");
+                    }
+                    try {
+                        info = examine(joinType);
+                        cache.put(joinType, info);
+                    } finally {
+                        examining.remove(joinType);
+                        if (examining.isEmpty()) {
+                            examining = null;
+                        }
+                    }
                 }
             }
         }
@@ -83,7 +99,7 @@ final class JoinRowInfo {
             messages.add("cannot define a key or secondary index");
         }
 
-        var allColumns = new TreeMap<String, ColumnInfo>();
+        var allColumns = new TreeMap<String, JoinColumnInfo>();
         examineAllColumns(allColumns, joinType, messages);
         errorCheck(joinType, messages);
 
@@ -115,7 +131,7 @@ final class JoinRowInfo {
      * @param allColumns results stored here
      * @return automatic column, if one is defined
      */
-    private static void examineAllColumns(NavigableMap<String, ColumnInfo> allColumns,
+    private static void examineAllColumns(NavigableMap<String, JoinColumnInfo> allColumns,
                                           Class<?> joinType, Set<String> messages)
     {
         for (Method method : joinType.getMethods()) {
@@ -216,18 +232,18 @@ final class JoinRowInfo {
     /**
      * @return null if illegal
      */
-    private static ColumnInfo addColumn(NavigableMap<String, ColumnInfo> allColumns,
+    private static ColumnInfo addColumn(NavigableMap<String, JoinColumnInfo> allColumns,
                                         Set<String> messages, String name, Class<?> type)
     {
-        if (typeInfo(messages, name, type) == null) {
+        if (!typeCheck(messages, name, type)) {
             return null;
         }
 
-        ColumnInfo info = allColumns.get(name);
+        JoinColumnInfo info = allColumns.get(name);
 
         if (info == null) {
             name = name.intern();
-            info = new ColumnInfo();
+            info = new JoinColumnInfo();
             info.name = name;
             info.type = type;
             info.typeCode = TYPE_OBJECT;
@@ -242,16 +258,21 @@ final class JoinRowInfo {
     }
 
     /**
-     * @return null if illegal
+     * @return false if illegal
      */
-    private static RowInfo typeInfo(Set<String> messages, String name, Class<?> type) {
+    private static boolean typeCheck(Set<String> messages, String name, Class<?> type) {
         String msg;
 
         if (!type.isInterface()) {
             msg = "must be a row type interface";
         } else {
             try {
-                return RowInfo.find(type);
+                if (type.isAnnotationPresent(PrimaryKey.class)) {
+                    RowInfo.find(type);
+                } else {
+                    JoinRowInfo.find(type);
+                }
+                return true;
             } catch (IllegalArgumentException e) {
                 msg = e.getMessage();
                 if (msg == null || msg.isEmpty()) {
@@ -265,16 +286,16 @@ final class JoinRowInfo {
             .toString();
         messages.add(msg);
 
-        return null;
+        return false;
     }
 
     // Fully qualified join row type name.
     final String name;
 
     // Map is ordered lexicographically by name.
-    final NavigableMap<String, ColumnInfo> allColumns;
+    final NavigableMap<String, JoinColumnInfo> allColumns;
 
-    JoinRowInfo(String name, NavigableMap<String, ColumnInfo> allColumns) {
+    JoinRowInfo(String name, NavigableMap<String, JoinColumnInfo> allColumns) {
         this.name = name;
         this.allColumns = allColumns;
     }

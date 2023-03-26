@@ -98,7 +98,7 @@ final class JoinComparatorMaker<J> {
         var row0 = mm.param(0);
         var row1 = mm.param(1);
 
-        Iterator<ColumnInfo> it = mJoinInfo.allColumns.values().iterator();
+        Iterator<JoinColumnInfo> it = mJoinInfo.allColumns.values().iterator();
         while (it.hasNext()) {
             ColumnInfo info = it.next();
             Label nextLabel = mm.label();

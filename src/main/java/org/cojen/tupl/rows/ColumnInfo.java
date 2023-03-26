@@ -22,6 +22,8 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
+import java.util.Map;
+
 /**
  * 
  *
@@ -302,7 +304,32 @@ public class ColumnInfo implements Cloneable {
         };
     }
 
-    ColumnInfo copy() {
+    /**
+     * @see JoinColumnInfo
+     */
+    public boolean isScalarType() {
+        return true;
+    }
+
+    /**
+     * @return null if not found
+     * @see JoinColumnInfo
+     */
+    public ColumnInfo subColumn(String name) {
+        return null;
+    }
+
+    /**
+     * Recursively puts all the scalar columns into the given map with their fully qualified
+     * names.
+     *
+     * @see JoinColumnInfo
+     */
+    public void putScalarColumns(Map<String, ColumnInfo> dst) {
+        dst.put(name, this);
+    }
+
+    public ColumnInfo copy() {
         try {
             return (ColumnInfo) clone();
         } catch (CloneNotSupportedException e) {
