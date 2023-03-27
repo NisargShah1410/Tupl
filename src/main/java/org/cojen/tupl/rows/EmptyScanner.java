@@ -17,8 +17,6 @@
 
 package org.cojen.tupl.rows;
 
-import java.util.Objects;
-
 import org.cojen.tupl.Scanner;
 
 /**
@@ -49,7 +47,6 @@ public final class EmptyScanner<R> implements Scanner<R> {
 
     @Override
     public R step(R dst) {
-        Objects.requireNonNull(dst);
         return null;
     }
 
