@@ -27,82 +27,80 @@ import org.cojen.tupl.Updater;
 import org.cojen.tupl.diag.QueryPlan;
 
 /**
- * Base interface for join tables, providing default implementations for most methods.
+ * Base class for generated join tables.
  *
  * @author Brian S O'Neill
  */
-public interface JoinTable<J> extends Table<J> {
+public abstract class JoinTable<J> implements Table<J> {
     @Override
-    public default Updater<J> newUpdater(Transaction txn) throws IOException {
+    public Updater<J> newUpdater(Transaction txn) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default Updater<J> newUpdater(Transaction txn, String query, Object... args)
+    public Updater<J> newUpdater(Transaction txn, String query, Object... args)
         throws IOException
     {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default boolean load(Transaction txn, J row) throws IOException {
+    public boolean load(Transaction txn, J row) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public default boolean exists(Transaction txn, J row) throws IOException {
+    public boolean exists(Transaction txn, J row) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public default void store(Transaction txn, J row) throws IOException {
+    public void store(Transaction txn, J row) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default J exchange(Transaction txn, J row) throws IOException {
+    public J exchange(Transaction txn, J row) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default boolean insert(Transaction txn, J row) throws IOException {
+    public boolean insert(Transaction txn, J row) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default boolean replace(Transaction txn, J row) throws IOException {
+    public boolean replace(Transaction txn, J row) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default boolean update(Transaction txn, J row) throws IOException {
+    public boolean update(Transaction txn, J row) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default boolean merge(Transaction txn, J row) throws IOException {
+    public boolean merge(Transaction txn, J row) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default boolean delete(Transaction txn, J row) throws IOException {
+    public boolean delete(Transaction txn, J row) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default QueryPlan updaterPlan(Transaction txn, String query, Object... args)
-        throws IOException
-    {
+    public QueryPlan updaterPlan(Transaction txn, String query, Object... args) throws IOException {
         throw new UnmodifiableViewException();
     }
 
     @Override
-    public default void close() throws IOException {
+    public void close() throws IOException {
         // Do nothing.
     }
 
     @Override
-    public default boolean isClosed() {
+    public boolean isClosed() {
         return false;
     }
 }

@@ -18,7 +18,6 @@
 package org.cojen.tupl.rows;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 import org.cojen.maker.ClassMaker;
 import org.cojen.maker.FieldMaker;
@@ -50,7 +49,7 @@ final class JoinScannerMaker {
     /**
      * Returns a class implementing JoinScanner, which is constructed with these parameters:
      *
-     *   (Transaction txn, Scanner first, Table... rest)
+     *   (Transaction txn, J joinRow, Scanner first, Table... rest)
      *
      * The scanner parameter corresponds to the outermost join level, and the table parameters
      * correspond to the inner join levels.
@@ -133,10 +132,11 @@ final class JoinScannerMaker {
         mClassMaker.addField(Transaction.class, "txn").protected_().final_();
         mClassMaker.addField(mJoinType, "row").private_();
 
-        var ctorParams = new Object[1 + mLevels.length];
+        var ctorParams = new Object[2 + mLevels.length];
         ctorParams[0] = Transaction.class;
-        ctorParams[1] = Scanner.class;
-        for (int i=2; i<ctorParams.length; i++) {
+        ctorParams[1] = mJoinType;
+        ctorParams[2] = Scanner.class;
+        for (int i=3; i<ctorParams.length; i++) {
             ctorParams[i] = Table.class;
         }
 
@@ -158,7 +158,7 @@ final class JoinScannerMaker {
         addCloseMethod();
 
         Label tryStart = mCtor.label().here();
-        mCtor.invoke("step", mCtor.new_(mJoinClass), false);
+        mCtor.invoke("step", mCtor.param(1), false);
         mCtor.return_();
         Label tryEnd = mCtor.label().here();
 
@@ -200,7 +200,10 @@ final class JoinScannerMaker {
         MethodMaker mm = mClassMaker.addMethod(mJoinType, "step", Object.class);
         mm.public_().final_();
         var newJoinRowVar = mm.param(0).cast(mJoinType);
-        mm.var(Objects.class).invoke("requireNonNull", newJoinRowVar);
+        var notNull = mm.label();
+        newJoinRowVar.ifNe(null, notNull);
+        newJoinRowVar.set(mm.new_(mJoinClass));
+        notNull.here();
         copyLevelRows(newJoinRowVar);
         mm.return_(mm.invoke("stepWith", newJoinRowVar, true));
 
@@ -251,19 +254,19 @@ final class JoinScannerMaker {
 
         if (n == 0) {
             fm.final_();
-            mCtor.field(name).set(mCtor.param(1));
+            mCtor.field(name).set(mCtor.param(2));
             return;
         }
 
         String tableFieldName = name + "table";
         mClassMaker.addField(Table.class, tableFieldName).protected_().final_();
-        mCtor.field(tableFieldName).set(mCtor.param(1 + n));
+        mCtor.field(tableFieldName).set(mCtor.param(2 + n));
 
         MethodMaker mm = mClassMaker.addMethod(Scanner.class, name, mJoinType).protected_();
         mm.return_(mm.field(tableFieldName).invoke("newScanner", mm.field("txn")));
 
         mm = mClassMaker.addMethod(Scanner.class, name, mJoinType, mLevels[n].type).protected_();
-        mm.return_(mm.field(tableFieldName).invoke("newScanner", mm.field("txn"), mm.param(1)));
+        mm.return_(mm.field(tableFieldName).invoke("newScannerWith", mm.field("txn"), mm.param(1)));
     }
 
     /**

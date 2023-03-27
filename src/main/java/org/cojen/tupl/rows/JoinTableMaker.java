@@ -31,6 +31,7 @@ import org.cojen.maker.ClassMaker;
 import org.cojen.maker.Field;
 import org.cojen.maker.Label;
 import org.cojen.maker.MethodMaker;
+import org.cojen.maker.Variable;
 
 import org.cojen.tupl.Scanner;
 import org.cojen.tupl.Table;
@@ -91,7 +92,7 @@ public class JoinTableMaker {
 
         mClassMaker = RowGen.beginClassMaker
             (JoinTableMaker.class, joinType, mJoinInfo.name, null, "table")
-            .implement(JoinTable.class).public_();
+            .extend(JoinTable.class).public_();
     }
 
     private Class<?> finish() {
@@ -142,6 +143,7 @@ public class JoinTableMaker {
         }
 
         addNewScannerMethod();
+        addNewScannerWithMethod();
         addNewScannerQueryMethod();
         addIsEmptyMethod();
         addComparatorMethod();
@@ -229,8 +231,8 @@ public class JoinTableMaker {
      * Adds the newScanner method which doesn't have query filter and is thus a cross join.
      */
     private void addNewScannerMethod() {
-        MethodMaker mm = mClassMaker.addMethod(Scanner.class, "newScanner", Transaction.class);
-        mm.public_();
+        MethodMaker mm = mClassMaker.addMethod
+            (Scanner.class, "newScanner", Transaction.class).public_();
         if (mJoinInfo.allColumns.isEmpty()) {
             mm.return_(mm.var(EmptyScanner.class).invoke("make"));
         } else {
@@ -239,35 +241,75 @@ public class JoinTableMaker {
         }
     }
 
+    /**
+     * Adds the newScannerWith method which doesn't have query filter and is thus a cross join.
+     */
+    private void addNewScannerWithMethod() {
+        MethodMaker mm = mClassMaker.addMethod
+            (Scanner.class, "newScannerWith", Transaction.class, Object.class).public_();
+        var joinRowVar = mm.param(1).cast(mJoinClass);
+        if (mJoinInfo.allColumns.isEmpty()) {
+            mm.return_(mm.var(EmptyScanner.class).invoke("make"));
+        } else {
+            Bootstrap indy = mm.var(JoinTableMaker.class).indy("indyCrossJoin", mJoinType);
+            mm.return_(indy.invoke(Scanner.class, "_", null, mm.this_(), mm.param(0), joinRowVar));
+        }
+    }
+
     public static CallSite indyCrossJoin(MethodHandles.Lookup lookup, String name, MethodType mt,
                                          Class<?> joinType)
         throws Throwable
     {
+        boolean withVariant = mt.parameterCount() > 2;
+
         MethodMaker mm = MethodMaker.begin(lookup, name, mt);
 
         var tableVar = mm.param(0);
         var txnVar = mm.param(1);
 
+        Class<?> joinClass = JoinRowMaker.find(joinType);
+
+        Variable joinRowVar;
+        if (!withVariant) {
+            joinRowVar = mm.new_(joinClass);
+        } else {
+            joinRowVar = mm.param(2);
+            var notNull = mm.label();
+            joinRowVar.ifNe(null, notNull);
+            joinRowVar.set(mm.new_(joinClass));
+            notNull.here();
+        }
+
         String[] levels = JoinRowInfo.find(joinType).allColumns.keySet().toArray(String[]::new);
         Class<?> scannerClass = JoinScannerMaker.find(joinType, levels);
 
-        var paramTypes = new Class[1 + levels.length];
+        var paramTypes = new Class[2 + levels.length];
         paramTypes[0] = Transaction.class;
-        paramTypes[1] = Scanner.class;
-        for (int i=2; i<paramTypes.length; i++) {
+        paramTypes[1] = joinType;
+        paramTypes[2] = Scanner.class;
+        for (int i=3; i<paramTypes.length; i++) {
             paramTypes[i] = Table.class;
         }
 
         MethodHandle ctor = lookup.findConstructor
             (scannerClass, MethodType.methodType(void.class, paramTypes));
 
-        var firstScannerVar = tableVar.field(levels[0]).invoke("newScanner", txnVar);
+        var levelField = tableVar.field(levels[0]);
+        Variable firstScannerVar;
 
-        var params = new Object[1 + levels.length];
+        if (!withVariant) {
+            firstScannerVar = levelField.invoke("newScanner", txnVar);
+        } else {
+            var levelRowVar = joinRowVar.field(levels[0]);
+            firstScannerVar = levelField.invoke("newScannerWith", txnVar, levelRowVar);
+        }
+
+        var params = new Object[2 + levels.length];
         params[0] = txnVar;
-        params[1] = firstScannerVar;
-        for (int i=2; i<params.length; i++) {
-            params[i] = tableVar.field(levels[i - 1]);
+        params[1] = joinRowVar;
+        params[2] = firstScannerVar;
+        for (int i=3; i<params.length; i++) {
+            params[i] = tableVar.field(levels[i - 2]);
         }
 
         mm.return_(mm.invoke(ctor, params));
@@ -276,7 +318,7 @@ public class JoinTableMaker {
     }
 
     private void addNewScannerQueryMethod() {
-        // FIXME: addNewScannerQueryMethod; two variants
+        // FIXME: addNewScannerQueryMethod; two variants: newScanner and newScannerWith
     }
 
     private void addIsEmptyMethod() {
